@@ -1,16 +1,24 @@
 _mvn() 
 {
+	
+	
     local cur prev opts
     COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
+	cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     opts="-am|-amd|-B|-C|-c|-cpu|-D|-e|-emp|-ep|-f|-fae|-ff|-fn|-gs|-h|-l|-N|-npr|-npu|-nsu|-o|-P|-pl|-q|-rf|-s|-T|-t|-U|-up|-V|-v|-X"
     long_opts="--also-make|--also-make-dependents|--batch-mode|--strict-checksums|--lax-checksums|--check-plugin-updates|--define|--errors|--encrypt-master-password|--encrypt-password|--file|--fail-at-end|--fail-fast|--fail-never|--global-settings|--help|--log-file|--non-recursive|--no-plugin-registry|--no-plugin-updates|--no-snapshot-updates|--offline|--activate-profiles|--projects|--quiet|--resume-from|--settings|--threads|--toolchains|--update-snapshots|--update-plugins|--show-version|--version|--debug"
 
-    common_lifecycle_phases="clean|process-resources|compile|process-test-resources|test-compile|test|package|install|deploy|site"
-    common_plugins="deploy|failsafe|install|site|surefire|checkstyle|javadoc|jxr|pmd|ant|antrun|archetype|assembly|dependency|enforcer|gpg|help|release|repository|source|eclipse|idea|jetty|cargo|jboss|tomcat|tomcat6|tomcat7|exec|versions|war|ear|ejb|android|scm|nexus|repository|sonar|license|hibernate3|liquibase"
+   common_lifecycle_phases="clean|process-resources|compile|process-test-resources|test-compile|test|package|install|deploy|site"
     
+	if [[ "${common_plugins_ext}" == "" ]] ; then
+		common_plugins="" 
+    else
+		common_plugins="${common_plugins_ext}|"
+	fi
+	common_plugins="${common_plugins}deploy|failsafe|install|site|surefire|checkstyle|javadoc|jxr|pmd|ant|antrun|archetype|assembly|dependency|enforcer|gpg|help|release|repository|source|eclipse|idea|jetty|cargo|jboss|tomcat|tomcat6|tomcat7|exec|versions|war|ear|ejb|android|scm|nexus|repository|sonar|license|hibernate3|liquibase"
+	
     plugin_goals_deploy="deploy:deploy-file"
     plugin_goals_failsafe="failsafe:integration-test|failsafe:verify"
     plugin_goals_install="install:install-file"
@@ -58,18 +66,25 @@ _mvn()
     plugin_goals_license="license:format|license:check"
     plugin_goals_hibernate3="hibernate3:hbm2ddl|hibernate3:help"
     plugin_goals_liquibase="liquibase:changelogSync|liquibase:changelogSyncSQL|liquibase:clearCheckSums|liquibase:dbDoc|liquibase:diff|liquibase:dropAll|liquibase:help|liquibase:migrate|liquibase:listLocks|liquibase:migrateSQL|liquibase:releaseLocks|liquibase:rollback|liquibase:rollbackSQL|liquibase:status|liquibase:tag|liquibase:update|liquibase:updateSQL|liquibase:updateTestingRollback"
+	
+	if [[ "${options_ext}" == "" ]] ; then
+		options="" 
+    else
+		options="${options_ext}|"
+	fi
+	
+	options="${options}-Dmaven.test.skip=true|-DskipTests|-Dmaven.surefire.debug|-DenableCiProfile|-Dpmd.skip=true|-Dcheckstyle.skip=true|-Dtycho.mode=maven"
 
-    options="-Dmaven.test.skip=true|-DskipTests|-Dmaven.surefire.debug|-DenableCiProfile|-Dpmd.skip=true|-Dcheckstyle.skip=true|-Dtycho.mode=maven"
-
-    profile_settings=`[ -e ~/.m2/settings.xml ] && grep -e "<profile>" -A 1 ~/.m2/settings.xml | grep -e "<id>.*</id>" | sed 's/.*<id>/-P/' | sed 's/<\/id>//g'`
-    profile_pom=`[ -e pom.xml ] && grep -e "<profile>" -A 1 pom.xml | grep -e "<id>.*</id>" | sed 's/.*<id>/-P/' | sed 's/<\/id>//g'`
-
+   
     local IFS=$'|\n'
 
     if [[ ${cur} == -D* ]] ; then
       COMPREPLY=( $(compgen -S ' ' -W "${options}" -- ${cur}) )
 
     elif [[ ${cur} == -P* ]] ; then
+	  profile_settings=`[ -e ~/.m2/settings.xml ] && grep -e "<profile>" -A 1 ~/.m2/settings.xml | grep -e "<id>.*</id>" | sed 's/.*<id>/-P/' | sed 's/<\/id>//g'`
+	  profile_pom=`[ -e pom.xml ] && grep -e "<profile>" -A 1 pom.xml | grep -e "<id>.*</id>" | sed 's/.*<id>/-P/' | sed 's/<\/id>//g'`
+
       COMPREPLY=( $(compgen -S ' ' -W "${profile_settings}|${profile_pom}" -- ${cur}) )
 
     elif [[ ${cur} == --* ]] ; then
@@ -83,29 +98,23 @@ _mvn()
             COMPREPLY=( $(compgen -d -S ',' -P "${cur%,*}," -- ${cur##*,}) )
         else
             COMPREPLY=( $(compgen -d -S ',' -- ${cur}) )
-        fi
+		fi
 
     elif [[ ${prev} == -rf || ${prev} == --resume-from ]] ; then
         COMPREPLY=( $(compgen -d -S ' ' -- ${cur}) )
-
-    elif [[ ${cur} == *:* ]] ; then
-        for plugin in $common_plugins; do
-          if [[ ${cur} == ${plugin}:* ]]; then
-            var_name="plugin_goals_${plugin}"
-            COMPREPLY=( $(compgen -W "${!var_name}" -S ' ' -- ${cur}) )
-          fi
-        done
-
     else
-        if echo "${common_lifecycle_phases}" | tr '|' '\n' | grep -q -e "^${cur}" ; then
-          COMPREPLY=( $(compgen -S ' ' -W "${common_lifecycle_phases}" -- ${cur}) )
-        elif echo "${common_plugins}" | tr '|' '\n' | grep -q -e "^${cur}"; then
-          COMPREPLY=( $(compgen -S ':' -W "${common_plugins}" -- ${cur}) )
-        fi
-    fi
+		var_name="${common_lifecycle_phases}"
+		for plugin in $common_plugins; do
+			goalsVariable="plugin_goals_${plugin}"
+			goalsValue="${!goalsVariable}"
+			var_name="${var_name}|${goalsValue}" 
+		done
+		
+		COMPREPLY=( $(compgen -W "${var_name}" -S ' '  -- ${cur}) )
+	fi
+
 }
 
 complete -o default -F _mvn -o nospace mvn
 complete -o default -F _mvn -o nospace mvnDebug
-
 COMP_WORDBREAKS=${COMP_WORDBREAKS//:}
